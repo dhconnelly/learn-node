@@ -1,6 +1,7 @@
-import fs from "fs";
+import { createReadStream } from "fs";
+import { Readable, Writable } from "stream";
 
-async function write(is, os) {
+async function write(is: Readable, os: Writable) {
     return new Promise((res, rej) => {
         is.on("end", res);
         is.on("error", rej);
@@ -8,14 +9,14 @@ async function write(is, os) {
     });
 }
 
-async function main(args) {
+async function main(args: string[]) {
     if (args.length === 0) {
         await write(process.stdin, process.stdout);
         return;
     }
     for (const file of args) {
         try {
-            const is = fs.createReadStream(file);
+            const is = createReadStream(file);
             await write(is, process.stdout);
         } catch (err) {
             console.error(`cat: ${err.message}`);
@@ -24,4 +25,4 @@ async function main(args) {
     }
 }
 
-await main(process.argv.slice(2));
+(async () => await main(process.argv.slice(2)))();
