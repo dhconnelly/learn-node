@@ -1,8 +1,11 @@
-import http from "node:http";
+import { request, createServer, IncomingMessage, ServerResponse } from "http";
 
-function handleRequest(clientReq, clientRes) {
+function handleRequest(
+    clientReq: IncomingMessage,
+    clientRes: ServerResponse
+): void {
     const url = new URL(clientReq.url);
-    const proxyReq = http.request(
+    const proxyReq = request(
         {
             port: url.port || 80,
             hostname: url.hostname,
@@ -18,15 +21,15 @@ function handleRequest(clientReq, clientRes) {
     clientReq.pipe(proxyReq, { end: true });
 }
 
-function serve(port) {
-    const server = http.createServer(handleRequest);
+function serve(port: number): void {
+    const server = createServer(handleRequest);
     server.listen(port);
     console.log("listening on port", port);
 }
 
-function main(args) {
-    const port = args.length === 1 ? args[0] : 80;
-    serve(args[0]);
+function main(args: string[]): void {
+    const port = args.length === 1 ? parseInt(args[0]) : 80;
+    serve(port);
 }
 
 main(process.argv.slice(2));
