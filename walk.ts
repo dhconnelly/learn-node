@@ -1,31 +1,31 @@
 import * as assert from "assert";
 import { nextTick } from "process";
+import * as fs from "fs";
 
-interface Transform<T, U, E extends Error> {
-    (t: T, cb: Callback<U, E>): void;
+interface Transform<T, U> {
+    (t: T, cb: Callback<U>): void;
 }
 
-interface Callback<Result, E extends Error> {
-    (err: E): void;
+interface Callback<Result> {
+    (err: Error): void;
     (err: null, result: Result): void;
 }
 
-interface Predicate<T, E extends Error> {
-    (t: T, cb: Callback<boolean, E>): void;
+interface Predicate<T> {
+    (t: T, cb: Callback<boolean>): void;
 }
 
-function pmap<T, U, E extends Error>(
-    collection: T[],
-    f: Transform<T, U, E>,
-    cb: Callback<U[], E>
-) {
+function pmap<T, U>(f: Transform<T, U>, collection: T[], cb: Callback<U[]>) {
+    if (collection.length === 0) {
+        return nextTick(() => cb(null, []));
+    }
     const all: U[] = [];
     let stop = false;
     let done = 0;
-    const onItemDone: Callback<U, E> = (err: E | null, result?: U): void => {
+    const onItemDone: Callback<U> = (err: Error | null, result?: U) => {
+        ++done;
         if (stop) return;
-        if (result) {
-            ++done;
+        if (result !== undefined) {
             all.push(result);
         }
         if (err) {
@@ -40,18 +40,17 @@ function pmap<T, U, E extends Error>(
     }
 }
 
-function pfilter<T, E extends Error>(
-    collection: T[],
-    f: Predicate<T, E>,
-    cb: Callback<T[], E>
-) {
+function pfilter<T>(f: Predicate<T>, collection: T[], cb: Callback<T[]>) {
+    if (collection.length === 0) {
+        return nextTick(() => cb(null, []));
+    }
     const all: T[] = [];
     let stop = false;
     let done = 0;
-    const onItemDone = (item: T, err: E | null, result?: boolean): void => {
+    const onItemDone = (item: T, err: Error | null, result?: boolean): void => {
+        ++done;
         if (stop) return;
         if (result !== undefined) {
-            ++done;
             if (result) all.push(item);
         }
         if (err) {
@@ -62,14 +61,14 @@ function pfilter<T, E extends Error>(
         }
     };
     for (const item of collection) {
-        const done: Callback<boolean, E> = onItemDone.bind(null, item);
+        const done: Callback<boolean> = onItemDone.bind(null, item);
         nextTick(() => f(item, done));
     }
 }
 
 pmap(
-    [1, 2, 3],
     (x, done) => done(null, x * x),
+    [1, 2, 3],
     (err: Error | null, result?: number[]): void => {
         assert.ok(!err);
         assert.deepStrictEqual([1, 4, 9], result);
@@ -77,10 +76,10 @@ pmap(
 );
 
 pmap(
-    [1, 2, 3],
     (x, done) => {
         if (x === 3) return done(new Error("foo"));
     },
+    [1, 2, 3],
     (err: Error | null, result?: number[]) => {
         assert.ok(err);
         assert.strictEqual("foo", err.message);
@@ -88,9 +87,18 @@ pmap(
     }
 );
 
+pmap(
+    (x, done) => done(x),
+    [],
+    (err: Error | null, result?: number[]) => {
+        assert.ok(!err);
+        assert.deepStrictEqual([], result);
+    }
+);
+
 pfilter(
-    [1, 2, 3],
     (x, done) => done(null, x > 1),
+    [1, 2, 3],
     (err: Error | null, result?: number[]): void => {
         assert.ok(!err);
         assert.deepStrictEqual([2, 3], result);
@@ -98,13 +106,60 @@ pfilter(
 );
 
 pfilter(
-    [1, 2, 3],
     (x, done) => {
         if (x === 2) return done(new Error("foo"));
     },
+    [1, 2, 3],
     (err: Error | null, result?: number[]) => {
         assert.ok(err);
         assert.strictEqual("foo", err.message);
         assert.ok(!result);
     }
 );
+
+function isDirectory(path: string, cb: Callback<boolean>) {
+    fs.stat(path, (err, stats) => {
+        if (err) return cb(err);
+        return cb(null, stats.isDirectory());
+    });
+}
+
+function listContents(path: string, cb: Callback<string[]>) {
+    fs.readdir(path, (err, files) => {
+        if (err) return cb(err);
+        const paths = files.map((file) => `${path}/${file}`);
+        return cb(null, paths);
+    });
+}
+
+function walkAll(paths: string[], cb: Callback<string[]>) {
+    pmap(walk, paths, (err: Error | null, files?: string[][]) => {
+        if (err) return cb(err);
+        return cb(null, files!.flat());
+    });
+}
+
+function walk(path: string, cb: Callback<string[]>) {
+    const all = [path];
+    function onContents(err: Error | null, files?: string[]) {
+        if (err) return cb(err);
+        const paths = all.concat(files!);
+        return cb(null, paths);
+    }
+    isDirectory(path, (err: Error | null, isDirectory?: boolean) => {
+        if (err) return cb(err);
+        if (!isDirectory) return nextTick(() => onContents(null, []));
+        listContents(path, (err: Error | null, files?: string[]) => {
+            if (err) return cb(err);
+            walkAll(files!, onContents);
+        });
+    });
+}
+
+walk(process.argv[2], (err: Error | null, files?: string[]) => {
+    if (err) {
+        console.error(err.message);
+        process.exit(1);
+    }
+    console.log(files);
+});
