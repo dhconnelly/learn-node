@@ -132,27 +132,25 @@ function listContents(path: string, cb: Callback<string[]>) {
     });
 }
 
-function walkAll(paths: string[], cb: Callback<string[]>) {
+function walkAll(parent: string, paths: string[], cb: Callback<string[]>) {
     pmap(walk, paths, (err: Error | null, files?: string[][]) => {
         if (err) return cb(err);
-        return cb(null, files!.flat());
+        return cb(null, files!.flat().concat([parent]));
+    });
+}
+
+function walkDir(path: string, cb: Callback<string[]>) {
+    listContents(path, (err: Error | null, files?: string[]) => {
+        if (err) return cb(err);
+        walkAll(path, files!, cb);
     });
 }
 
 function walk(path: string, cb: Callback<string[]>) {
-    const all = [path];
-    function onContents(err: Error | null, files?: string[]) {
-        if (err) return cb(err);
-        const paths = all.concat(files!);
-        return cb(null, paths);
-    }
     isDirectory(path, (err: Error | null, isDirectory?: boolean) => {
         if (err) return cb(err);
-        if (!isDirectory) return nextTick(() => onContents(null, []));
-        listContents(path, (err: Error | null, files?: string[]) => {
-            if (err) return cb(err);
-            walkAll(files!, onContents);
-        });
+        if (!isDirectory) return nextTick(() => cb(null, [path]));
+        walkDir(path, cb);
     });
 }
 
