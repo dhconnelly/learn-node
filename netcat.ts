@@ -47,7 +47,7 @@ async function main(args: string[]) {
 }
 
 try {
-    (async () => main(process.argv.slice(2)))();
+    await main(process.argv.slice(2));
 } catch (error) {
     console.error(error.message);
     process.exit(1);

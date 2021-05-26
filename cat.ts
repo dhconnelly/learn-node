@@ -25,4 +25,4 @@ async function main(args: string[]) {
     }
 }
 
-(async () => await main(process.argv.slice(2)))();
+await main(process.argv.slice(2));

@@ -1,6 +1,8 @@
 {
     "compilerOptions": {
         "strict": true,
-        "lib": ["ESNext"]
+        "lib": ["ESNext"],
+        "module": "ESNext",
+        "target": "ES2017"
     }
 }

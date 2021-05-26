@@ -124,35 +124,38 @@ function isDirectory(path: string, cb: Callback<boolean>) {
     });
 }
 
-function listContents(path: string, cb: Callback<string[]>) {
+const listContents: Transform<string, string[]> = (path, cb) => {
     fs.readdir(path, (err, files) => {
         if (err) return cb(err);
         const paths = files.map((file) => `${path}/${file}`);
         return cb(null, paths);
     });
-}
+};
 
-function walkAll(parent: string, paths: string[], cb: Callback<string[]>) {
+const walkAll: Transform<[string, string[]], string[]> = (
+    [parent, paths],
+    cb
+) => {
     pmap(walk, paths, (err: Error | null, files?: string[][]) => {
         if (err) return cb(err);
         return cb(null, files!.flat().concat([parent]));
     });
-}
+};
 
-function walkDir(path: string, cb: Callback<string[]>) {
-    listContents(path, (err: Error | null, files?: string[]) => {
-        if (err) return cb(err);
-        walkAll(path, files!, cb);
+const walkDir: Transform<string, string[]> = (path, cb) => {
+    listContents(path, (err: Error | null, files: string[] = []) => {
+        if (err !== null) return cb(err);
+        walkAll([path, files], cb);
     });
-}
+};
 
-function walk(path: string, cb: Callback<string[]>) {
+const walk: Transform<string, string[]> = (path, cb) => {
     isDirectory(path, (err: Error | null, isDirectory?: boolean) => {
         if (err) return cb(err);
         if (!isDirectory) return nextTick(() => cb(null, [path]));
         walkDir(path, cb);
     });
-}
+};
 
 walk(process.argv[2], (err: Error | null, files?: string[]) => {
     if (err) {

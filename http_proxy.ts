@@ -1,10 +1,11 @@
 import { request, createServer, IncomingMessage, ServerResponse } from "http";
+import { URL } from "url";
 
 function handleRequest(
     clientReq: IncomingMessage,
     clientRes: ServerResponse
 ): void {
-    const url = new URL(clientReq.url);
+    const url = new URL(clientReq.url!);
     const proxyReq = request(
         {
             port: url.port || 80,
@@ -14,7 +15,7 @@ function handleRequest(
             headers: clientReq.headers,
         },
         (proxyRes) => {
-            clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
+            clientRes.writeHead(proxyRes.statusCode!, proxyRes.headers);
             proxyRes.pipe(clientRes, { end: true });
         }
     );
